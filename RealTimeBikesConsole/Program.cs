@@ -10,6 +10,9 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using CommandLine;
 using Newtonsoft.Json;
+using System.Reactive.Concurrency;
+using System.Reactive.Disposables;
+using System.Net;
 
 namespace RealTimeBikesConsole
 {
@@ -26,14 +29,63 @@ namespace RealTimeBikesConsole
 
         static void Main(string[] args)
         {
-            GetStationDetailsAsync().Wait();
-            //StationDetails = GetSyncStations();
+            //var sub = Observable.Interval(TimeSpan.FromSeconds(5))
+            //                    .Subscribe(_ =>
+            //                         {
+            //                             Observable.FromAsync(ReturnStationDetailsAsync)
+            //                                 .Subscribe(t =>
+            //                             {
+            //                                 PrintStations(t);
+            //                             });
+            //                         });
+            //Console.ReadLine();
+            //sub.Dispose();
 
-            foreach (var stationDetail in StationDetails)
+             var obsStations = Observable.Create((IObserver<Station> obsSt) =>
+                {
+                    var result = ReturnStationDetailsAsync();
+                    foreach (var item in result.Result)
+                        obsSt.OnNext(item);
+                    obsSt.OnCompleted();
+                    return Disposable.Create(() => Console.WriteLine("Completed"));
+                });
+
+             var interVal = Observable.Interval(TimeSpan.FromSeconds(5))
+                 .Subscribe(_ =>
+                 {
+                     obsStations.Subscribe(t => Console.WriteLine(t.Address));
+                 });
+
+            Console.ReadLine();
+        }
+
+        static void PrintStations(List<Station> stations)
+        {
+            foreach (var stationDetail in stations)
             {
                 var output = String.Format("Station: {0}, Available Bikes: {1}, Bike Stands: {2}, Available Bike Stands: {3}",
                     stationDetail.Name, stationDetail.Available_Bikes, stationDetail.Bike_Stands, stationDetail.Available_Bike_Stands);
                 Console.WriteLine(output);
+            }
+        }
+
+        static async Task<List<Station>> ReturnStationDetailsAsync()
+        {
+            List<Station> results = new List<Station>();
+            var query = String.Format("?contract=dublin&apiKey={0}", apiKey);
+            using (var client = new HttpClient())
+            {
+                client.BaseAddress = new Uri(stations);
+                client.DefaultRequestHeaders.Accept.Clear();
+                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                var response = await client.GetAsync(query);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    results = await response.Content.ReadAsAsync<List<Station>>();
+                }
+                return results;
             }
         }
 
