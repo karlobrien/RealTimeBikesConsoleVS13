@@ -41,22 +41,26 @@ namespace RealTimeBikesConsole
             //Console.ReadLine();
             //sub.Dispose();
 
-             var obsStations = Observable.Create((IObserver<Station> obsSt) =>
-                {
-                    var result = ReturnStationDetailsAsync();
-                    foreach (var item in result.Result)
-                        obsSt.OnNext(item);
-                    obsSt.OnCompleted();
-                    return Disposable.Create(() => Console.WriteLine("Completed"));
-                });
-
              var interVal = Observable.Interval(TimeSpan.FromSeconds(5))
                  .Subscribe(_ =>
                  {
-                     obsStations.Subscribe(t => Console.WriteLine(t.Address));
+                     StationQuery().Subscribe(t => Console.WriteLine(t.Address));
                  });
 
             Console.ReadLine();
+        }
+
+        static IObservable<Station> StationQuery()
+        {
+            var obsStations = Observable.Create((IObserver<Station> obsSt) =>
+            {
+                var result = ReturnStationDetailsAsync();
+                foreach (var item in result.Result)
+                    obsSt.OnNext(item);
+                obsSt.OnCompleted();
+                return Disposable.Create(() => Console.WriteLine("Completed"));
+            });
+            return obsStations;
         }
 
         static void PrintStations(List<Station> stations)
