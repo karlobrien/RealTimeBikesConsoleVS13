@@ -12,9 +12,9 @@ namespace RealTimeBikesConsole
         public bool Banking { get; set; }
         public string Bonus { get; set; }
         public string Status { get; set; }
-        public int BikeStands { get; set; }
-        public int AvailableBikeStands { get; set; }
-        public int AvailableBikes { get; set; }
+        public string Bike_Stands { get; set; }
+        public string Available_Bike_Stands { get; set; }
+        public string Available_Bikes { get; set; }
         public DateTime TimeStamp { get; set; }
     }
 
