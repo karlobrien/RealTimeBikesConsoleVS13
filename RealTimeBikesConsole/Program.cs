@@ -13,6 +13,7 @@ using Newtonsoft.Json;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Net;
+using System.Threading;
 
 namespace RealTimeBikesConsole
 {
@@ -29,24 +30,36 @@ namespace RealTimeBikesConsole
 
         static void Main(string[] args)
         {
-            //var sub = Observable.Interval(TimeSpan.FromSeconds(5))
-            //                    .Subscribe(_ =>
-            //                         {
-            //                             Observable.FromAsync(ReturnStationDetailsAsync)
-            //                                 .Subscribe(t =>
-            //                             {
-            //                                 PrintStations(t);
-            //                             });
-            //                         });
-            //Console.ReadLine();
-            //sub.Dispose();
+            var query = String.Format("?contract=dublin&apiKey={0}", apiKey);
 
-             var interVal = Observable.Interval(TimeSpan.FromSeconds(5))
+            /*
+            var sub = Observable.Interval(TimeSpan.FromSeconds(5))
+                                .Subscribe(_ =>
+                                     {
+                                         Observable.FromAsync(c => BikesQueryAsync<Station>(stations, query))
+                                             .Subscribe(t =>
+                                         {
+                                             PrintStations(t);
+                                         });
+                                     });
+            Console.ReadLine();
+            sub.Dispose();
+
+            var sub2 = Observable.Interval(TimeSpan.FromSeconds(5))
+                .SelectMany(_ => Observable.FromAsync(c => BikesQueryAsync<Station>(stations, query)))
+                .Subscribe(data => PrintStations(data));
+                        */
+            var sub3 = Observable.Interval(TimeSpan.FromSeconds(5))
+                .Select(_ => Observable.FromAsync(c => PollBikeApiAsync<Station>(stations, query)))
+                .Switch()
+                .Subscribe(data => PrintStations(data));
+
+             /*var interVal = Observable.Interval(TimeSpan.FromSeconds(5))
                  .Subscribe(_ =>
                  {
-                     StationQuery().Subscribe(t => Console.WriteLine(t.Address));
+                     StationQuery().Subscribe(t => Console.WriteLine(t.Available_Bikes));
                  });
-
+            */
             Console.ReadLine();
         }
 
@@ -54,7 +67,10 @@ namespace RealTimeBikesConsole
         {
             var obsStations = Observable.Create((IObserver<Station> obsSt) =>
             {
-                var result = ReturnStationDetailsAsync();
+                var query = String.Format("?contract=dublin&apiKey={0}", apiKey);
+
+                var result = PollBikeApiAsync<Station>(stations, query);
+
                 foreach (var item in result.Result)
                     obsSt.OnNext(item);
                 obsSt.OnCompleted();
@@ -63,17 +79,24 @@ namespace RealTimeBikesConsole
             return obsStations;
         }
 
-        static void PrintStations(List<Station> stations)
+        public static async Task<List<T>> PollBikeApiAsync<T>(string baseAddress, string query)
         {
-            foreach (var stationDetail in stations)
+            var results = new List<T>();
+            using (var client = new HttpClient())
             {
-                var output = String.Format("Station: {0}, Available Bikes: {1}, Bike Stands: {2}, Available Bike Stands: {3}",
-                    stationDetail.Name, stationDetail.Available_Bikes, stationDetail.Bike_Stands, stationDetail.Available_Bike_Stands);
-                Console.WriteLine(output);
+                client.BaseAddress = new Uri(baseAddress);
+                client.DefaultRequestHeaders.Accept.Clear();
+                client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                var response = await client.GetAsync(query);
+                if (response.IsSuccessStatusCode)
+                {
+                    results = await response.Content.ReadAsAsync<List<T>>();
+                }
+                return results;
             }
         }
 
-        static async Task<List<Station>> ReturnStationDetailsAsync()
+        public static async Task<List<Station>> ReturnStationDetailsAsync()
         {
             List<Station> results = new List<Station>();
             var query = String.Format("?contract=dublin&apiKey={0}", apiKey);
@@ -93,6 +116,15 @@ namespace RealTimeBikesConsole
             }
         }
 
+        static void PrintStations(List<Station> stations)
+        {
+            foreach (var stationDetail in stations)
+            {
+                var output = String.Format("Station: {0}, Available Bikes: {1}, Bike Stands: {2}, Available Bike Stands: {3}",
+                    stationDetail.Name, stationDetail.Available_Bikes, stationDetail.Bike_Stands, stationDetail.Available_Bike_Stands);
+                Console.WriteLine(output);
+            }
+        }
         static List<Station> GetSyncStations()
         {
             var queryResult = new List<Station>();
